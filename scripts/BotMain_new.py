@@ -2,7 +2,7 @@ import cv2 as cv
 import platform
 import pytesseract
 import pyautogui
-import scripts.windowcapture_windows as windowcapture_windows
+import scripts.windowcapture as windowcapture
 import configuration
 import time
 import win32con
@@ -23,7 +23,7 @@ spreadsheet = client.open("MarketBotAlbion")
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 current_platform = platform.system()
 if current_platform == "Windows":
-    window_capture = windowcapture_windows.WindowCaptureWindows(configuration.window_title)
+    window_capture = windowcapture.WindowCaptureWindows(configuration.window_title)
 window_resolution = window_capture.get_window_resolution()
 if window_resolution == "1920x1080":
     mouse_targets = configuration.mouse_targets_1920x1080
