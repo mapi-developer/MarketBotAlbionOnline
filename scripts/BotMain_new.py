@@ -2,11 +2,8 @@ import cv2 as cv
 import platform
 import pytesseract
 import pyautogui
-import scripts.windowcapture as windowcapture
 import configuration
 import time
-import win32con
-import win32gui
 import os
 import re
 import gspread
@@ -16,18 +13,27 @@ from oauth2client.service_account import ServiceAccountCredentials
 from pathlib import Path
 from datetime import datetime, timezone
 
-local_sheet_file_path = os.path.join(Path.cwd().parent, "data\PricesCaerleon.csv")
 credentials = ServiceAccountCredentials.from_json_keyfile_name('items-prices-albion-credentials.json', configuration.google_sheet_scope)
 client = gspread.authorize(credentials)
 spreadsheet = client.open("MarketBotAlbion")
 pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
 current_platform = platform.system()
 if current_platform == "Windows":
-    window_capture = windowcapture.WindowCaptureWindows(configuration.window_title)
+    import win32con
+    import win32gui
+    import windowcapture_windows as windowcapture
+    local_sheet_file_path = os.path.join(Path.cwd().parent, "data\PricesCaerleon.csv")
+elif current_platform == "Darwin":
+    import windowcapture_darwin as windowcapture
+    local_sheet_file_path = os.path.join(Path.cwd().parent, "data/PricesCaerleon.csv")
+window_capture = windowcapture.WindowCapture(configuration.window_title)
 window_resolution = window_capture.get_window_resolution()
 if window_resolution == "1920x1080":
     mouse_targets = configuration.mouse_targets_1920x1080
     screenshot_positions = configuration.screenshots_positions_1920x1080
+elif window_resolution == "1440x900":
+    mouse_targets = configuration.mouse_targets_1440x900
+    screenshot_positions = configuration.screenshots_positions_1440x900
 
 current_game_frame = ""
 local_sheet_data_frame = pandas.read_csv(local_sheet_file_path)
@@ -372,10 +378,11 @@ def check_mouse_click_position():
         listener.join()
 
 def main():
-    window = window_capture.get_window()
-    win32gui.ShowWindow(window, win32con.SW_RESTORE)
-    win32gui.SetForegroundWindow(window)
-    make_sell_orders()
+    #window = window_capture.get_window()
+    #win32gui.ShowWindow(window, win32con.SW_RESTORE)
+    #win32gui.SetForegroundWindow(window)
+    #make_sell_orders()
+    window_capture.get_screenshot(screenshot_positions["buy_order_price"])
 
 if __name__ == "__main__":
     main()

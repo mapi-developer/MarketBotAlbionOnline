@@ -1,11 +1,10 @@
-import win32gui, win32ui
 import ctypes
 from PIL import Image
 import os
+import win32gui, win32ui
 from pathlib import Path
 
-class WindowCaptureWindows:
-
+class WindowCapture:
     width = 0
     height = 0
     hwnd = None
