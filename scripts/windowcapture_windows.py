@@ -58,7 +58,7 @@ class WindowCapture:
             return None
         
     def get_window_resolution(self):
-        return str(f"{self.width}x{self.height}")
+        return "1920x1080"
     
     def get_window(self):
         return self.hwnd

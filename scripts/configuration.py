@@ -3,14 +3,17 @@ window_title = "Albion Online Client"
 google_sheet_scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 prices_update_time_gap = 6*60*60
-minimum_order_profit_rate = 1.7
+minimum_order_profit_rate = 1.6
 minimum_fast_buy_profit_rate = 1.5
+minimum_market_only_profit_rate = 1.9
 blackmarket_fast_sell_price_gap = 0.03
-minimum_account_silver_balance = 500000
+minimum_account_silver_balance = 1000000
 
 database_sheets = {
     "caerleon": 0,
-    "items_to_buy_lymhurst": 1
+    "items_to_buy_lymhurst": 1,
+    "fast_buy_items": 2,
+    "items_to_buy_market_only": 3
 }
 
 mouse_targets_1920x1080 = {
@@ -40,6 +43,7 @@ mouse_targets_1920x1080 = {
     "market_sell_tab": [1443, 406],
     "market_create_buy_order_tab": [1444,482],
     "my_orders_tab": [1444, 574],
+    "my_orders_tab_black_market": [1444, 492],
     "completed_transactions_tab": [1444, 733],
     "take_all_button": [1313, 922],
     "buy_order_button": [1313, 410],
@@ -65,11 +69,14 @@ mouse_targets_1920x1080 = {
     "caerleon": [783, 381],
     "edit_order": [1273, 392],
     "cancel_order": [1352, 385],
+    "cancel_order_black_market": [1346, 385],
     "price_sort_button": [1046, 334],
     "price_highest_button": [1027, 396],
     "price_lowest_button": [1027, 374],
     "extend_item_statistic": [1294, 297],
-    "order_no_longer_exist_ok": [957, 540]
+    "order_no_longer_exist_ok": [957, 540],
+    "buy_fast": [538, 477],
+    "change_to_make_buy_order": [531, 535]
 }
 screenshots_positions_1920x1080 = {
     "buy_order_price": [1296, 340, 1395, 368],
@@ -81,15 +88,16 @@ screenshots_positions_1920x1080 = {
     "check_game_frame_drops_popup": [1298, 246, 1415, 279],
     "check_escape_menu": [1691, 155, 1764, 178],
     "check_location": [1565, 1027, 1755, 1058],
-    "check_account_silver": [1287, 158, 1396, 194],
+    "check_account_silver": [1300, 158, 1396, 194],
     "check_order_exist": [650, 370, 813, 421],
     "check_item_price_royal_city": [1080, 405, 1173, 432],
-    "check_avaliable_amount": [1110, 346, 1180, 368],
+    "check_avaliable_amount": [1110, 340, 1180, 368],
     "activities": [708, 179, 847, 214],
     "check_inventory_open": [1592, 92, 1733, 130],
     "check_account_silver_from_inventory": [1582, 463, 1642, 489],
     "check_buy_orders_title": [1280, 281, 1395, 307],
-    "order_no_longer_exist_check": [1081, 440, 1168, 467]
+    "order_no_longer_exist_check": [1081, 440, 1168, 467],
+    "check_fast_buy_order_remainder": [850, 385, 870, 400]
 }
 
 mouse_targets_1440x900 = {
@@ -119,6 +127,7 @@ mouse_targets_1440x900 = {
     "market_sell_tab": [1443, 406],
     "market_create_buy_order_tab": [1444,482],
     "my_orders_tab": [1444, 574],
+    "my_orders_tab_black_market": [1444, 492],
     "completed_transactions_tab": [1444, 733],
     "take_all_button": [1313, 922],
     "buy_order_button": [1313, 410],
@@ -144,6 +153,7 @@ mouse_targets_1440x900 = {
     "caerleon": [783, 381],
     "edit_order": [1273, 392],
     "cancel_order": [1352, 385],
+    "cancel_order_black_market": [1346, 385],
     "price_sort_button": [1046, 334],
     "price_highest_button": [1027, 396],
     "price_lowest_button": [1027, 374],
@@ -174,7 +184,6 @@ screenshots_positions_1440x900 = {
 qualities_list = {
     "normal",
     "good",
-    "outstanding"
 }
 
 def get_items_amount(item_price):
@@ -186,7 +195,7 @@ def get_items_amount(item_price):
                 items_amount = 4
                 if item_price <= 10000:
                     items_amount = 8
-                    if item_price <= 1000:
+                    if item_price <= 2500:
                         items_amount = 10
     else:
         items_amount = 1

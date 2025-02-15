@@ -81,10 +81,10 @@ def get_account_silver_balance():
 
     if get_text_from_screenshot(screenshot_positions["check_inventory_open"]).replace(" ", "") != "inventory":
         pyautogui.press("t")
-        time.sleep(.1)
-    silver_balance_text_inentory = get_text_from_screenshot(screenshot_positions["check_account_silver_from_inventory"], False)
+        time.sleep(.3)
+    silver_balance_text_inentory = get_text_from_screenshot(screenshot_positions["check_account_silver_from_inventory"], True)
     silver_balance_number_inventory = ConvertSilverToNumber(silver_balance_text_inentory)
-    silver_balance_text = get_text_from_screenshot(screenshot_positions["check_account_silver"], False)
+    silver_balance_text = get_text_from_screenshot(screenshot_positions["check_account_silver"], True)
     silver_balance_number = ConvertSilverToNumber(silver_balance_text)
 
     if silver_balance_number_inventory == False and silver_balance_number != False:
@@ -177,9 +177,10 @@ def update_items_price(data_frame, city_name, only_zero_price=False, items_categ
     for column_index in range(1, len(data_frame.columns), 2):
         if items_categories_to_check[0] == "all" or data_frame.columns[column_index] in items_categories_to_check:
             for row_index in range(1, len(data_frame.iloc[:, column_index])):
-                item_full_title = data_frame.iloc[row_index, column_index]
-                if only_zero_price == False or data_frame.iloc[row_index, column_index+1] == str(0):
-                    data_frame.iloc[row_index, column_index+1] = check_item_price(item_full_title, "caerleon")
+                if data_frame.iloc[row_index, column_index] != "" and type(data_frame.iloc[row_index, column_index]) != type(1.11):
+                    item_full_title = data_frame.iloc[row_index, column_index]
+                    if only_zero_price == False or data_frame.iloc[row_index, column_index+1] == str(0):
+                        data_frame.iloc[row_index, column_index+1] = check_item_price(item_full_title, "caerleon")
 
     data_frame.iloc[0, 0] = datetime.strptime(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
 
@@ -219,27 +220,40 @@ def check_prices_date(city_name, only_zero_price=False):
             google_sheet_data_frame.to_csv(local_sheet_file_path, index=False)
             print("Updated prices in local data from DataBase")
 
-def cancel_orders():
-    pyautogui.click(mouse_targets["my_orders_tab"])
-    time.sleep(.2)
-    start_time = time.time()
-    while get_text_from_screenshot(screenshot_positions["check_order_exist"]) != "":
-        if time.time() - start_time >= 5:
-            start_time = time.time()
-            pyautogui.scroll(10)
-        pyautogui.click(mouse_targets["cancel_order"])
-        time.sleep(.1)
-
-    print("Successfully removed all orders")
-
-def make_buy_orders(city_name):
-    def check_statistics_open():
-        if get_text_from_screenshot(screenshot_positions["check_buy_orders_title"]) == "buy orders":
-            return True
-        else:
-            pyautogui.click(mouse_targets["extend_item_statistic"])
+def cancel_orders(market_type="royal_market"):
+    if market_type == "royal_market":
+        pyautogui.click(mouse_targets["my_orders_tab"])
+        time.sleep(.2)
+        start_time = time.time()
+        while get_text_from_screenshot(screenshot_positions["check_order_exist"]) != "":
+            if time.time() - start_time >= 5:
+                start_time = time.time()
+                pyautogui.scroll(10)
+            pyautogui.click(mouse_targets["cancel_order"])
             time.sleep(.1)
 
+        print("Successfully removed all orders")
+    elif market_type == "black_market":
+        pyautogui.click(mouse_targets["my_orders_tab_black_market"])
+        time.sleep(.2)
+        start_time = time.time()
+        while get_text_from_screenshot(screenshot_positions["check_order_exist"]) != "":
+            if time.time() - start_time >= 5:
+                start_time = time.time()
+                pyautogui.scroll(10)
+            pyautogui.click(mouse_targets["cancel_order_black_market"])
+            time.sleep(.1)
+
+        print("Successfully removed all orders")
+
+def check_statistics_open():
+    if get_text_from_screenshot(screenshot_positions["check_buy_orders_title"]) == "buy orders":
+        return True
+    else:
+        pyautogui.click(mouse_targets["extend_item_statistic"])
+        time.sleep(.2)
+
+def make_buy_orders(city_name):
     silver_balance = get_account_silver_balance()
     pyautogui.click(mouse_targets["market_create_buy_order_tab"])
     time.sleep(.1)
@@ -253,7 +267,7 @@ def make_buy_orders(city_name):
     i = 0
     for column_index in range(0, len(items_to_buy_data_frame.columns), 1):
         for row_index in range(0, len(items_to_buy_data_frame.iloc[:, column_index])):
-            if items_to_buy_data_frame.iloc[row_index, column_index] != "":
+            if items_to_buy_data_frame.iloc[row_index, column_index] != "" and type(items_to_buy_data_frame.iloc[row_index, column_index]) != type(1.11):
                 if silver_balance > configuration.minimum_account_silver_balance:
                     i += 1
                     if i%10 == 0:
@@ -289,7 +303,7 @@ def make_buy_orders(city_name):
                             print("Value Error with item price check")
                     item_amount = configuration.get_items_amount(item_order_price)
                     silver_to_buy = item_amount * item_order_price * 1.05
-                    
+                    print(silver_balance, silver_to_buy)
                     if item_order_price * configuration.minimum_order_profit_rate < item_price_caerleon and silver_balance > silver_to_buy:
                         time.sleep(.1)
                         pyautogui.click(mouse_targets["change_item_amount_in_order"])
@@ -309,7 +323,120 @@ def make_buy_orders(city_name):
                     return False
 
 def fast_buy_items():
-    return True
+    first_time_buy = True
+    def enough_profit(item_price_caerleon, item_buy_price):
+        if item_price_caerleon <= item_buy_price:
+            return False
+
+        profit_rate = 1 + (item_price_caerleon - item_buy_price) / item_buy_price
+
+        return profit_rate >= configuration.minimum_fast_buy_profit_rate
+
+    def buy_item_from_market(item_price_caerleon):
+        silver_balance = get_account_silver_balance()
+        text = get_text_from_screenshot(screenshot_positions["check_item_price_royal_city"])
+        if text != "":
+            try:
+                item_buy_price = int("".join(filter(str.isdigit, text)))
+                if enough_profit(item_price_caerleon, item_buy_price) == True and silver_balance > item_buy_price:
+                    pyautogui.click(mouse_targets["buy_order_button"])
+                    time.sleep(.2)
+                    if first_time_buy:
+                        first_time_buy == False
+                        check_statistics_open()
+                        time.sleep(.1)
+
+                    avaliable_amount = get_text_from_screenshot(screenshot_positions["check_avaliable_amount"], True)
+                    try:
+                        avaliable_amount = int("".join(filter(str.isdigit, avaliable_amount)))
+                        if avaliable_amount < 10:
+                            avaliable_amount = 10
+                    except ValueError:
+                        avaliable_amount = 10
+
+                    order_price_per_item = int(item_buy_price * 1.05)
+                    max_amount = silver_balance / order_price_per_item
+                    if max_amount > avaliable_amount:
+                        print(f"Made order on {item_full_title}: x{avaliable_amount}, Price:{order_price_per_item}")
+                        pyautogui.click(mouse_targets["change_to_make_buy_order"])
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets["change_item_amount_in_order"])
+                        pyautogui.typewrite(str(avaliable_amount))
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets["change_order_price"])
+                        pyautogui.typewrite(str(order_price_per_item))
+                        pyautogui.click(mouse_targets["create_order_button"])
+                        time.sleep(.2)
+                        pyautogui.click(mouse_targets["crate_order_confirmation"])
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets["my_orders_tab"])
+                        time.sleep(.2)
+                        pyautogui.click(mouse_targets["cancel_order"])
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets["market_buy_tab"])
+                        time.sleep(.1)
+                        buy_item_from_market(item_price_caerleon)
+                    elif silver_balance > item_buy_price:
+                        print(f"Bought one {item_full_title} for {item_buy_price}")
+                        pyautogui.click(mouse_targets["buy_fast"])
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets["create_order_button"])
+                        time.sleep(.1)
+                        buy_item_from_market(item_price_caerleon)
+            except ValueError:
+                print("Eror to check item price")
+        else:
+            print("Eror to check item price")
+
+    silver_balance = get_account_silver_balance()
+    pyautogui.click(mouse_targets["market_buy_tab"])
+    time.sleep(.1)
+
+    worksheet = spreadsheet.get_worksheet(configuration.database_sheets[f"fast_buy_items"])
+    
+    items_to_buy_data = worksheet.get_all_values()
+    items_to_buy_data_frame = pandas.DataFrame(items_to_buy_data[1:], columns=items_to_buy_data[0])
+    prices_caerleon_data_frame = pandas.read_csv(local_sheet_file_path)
+    
+    print(f"Cycle start balance: {silver_balance}")
+    for column_index in range(0, len(items_to_buy_data_frame.columns), 1):
+        for row_index in range(0, len(items_to_buy_data_frame.iloc[:, column_index])):
+            if items_to_buy_data_frame.iloc[row_index, column_index] != "" and type(items_to_buy_data_frame.iloc[row_index, column_index]) != type(1.11):
+                if silver_balance > configuration.minimum_account_silver_balance:
+                    item_category = items_to_buy_data_frame.columns[column_index]
+                    item_full_title = items_to_buy_data_frame.iloc[row_index, column_index]
+                    item_price_column_index = int(prices_caerleon_data_frame.columns.get_loc(item_category))
+                    item_price_row_index = int(prices_caerleon_data_frame.index[prices_caerleon_data_frame[item_category] == item_full_title].tolist()[0])
+                    item_price_caerleon = int(prices_caerleon_data_frame.iat[item_price_row_index, item_price_column_index+1])
+
+                    item_name, item_tier, item_enchantment = item_full_title.split("_")
+
+                    pyautogui.click(mouse_targets["market_search_reset"])
+                    time.sleep(.1)
+                    pyautogui.click(mouse_targets["market_search"])
+                    pyautogui.typewrite(item_name)
+                    pyautogui.click(mouse_targets["market_tier"])
+                    time.sleep(.1)
+                    pyautogui.click(mouse_targets[f"market_tier_{item_tier}"])
+                    pyautogui.click(mouse_targets["market_enchantment"])
+                    time.sleep(.1)
+                    pyautogui.click(mouse_targets[f"market_enchantment_{item_enchantment}"])
+                    time.sleep(.5)
+
+                    text = get_text_from_screenshot(screenshot_positions["check_item_price_royal_city"])
+                    if text != "":
+                        try:
+                            item_buy_price = int("".join(filter(str.isdigit, text)))
+                            profit_rate = round(((item_price_caerleon - item_buy_price) / item_buy_price), 2)
+                            print(f"{item_full_title}: Buy_Price: {item_buy_price}, Caerleon_Price: {item_price_caerleon}, Profit_Rate: {profit_rate}")
+                            if enough_profit(item_price_caerleon, item_buy_price) == True and silver_balance > item_buy_price:
+                                buy_item_from_market(item_price_caerleon)
+                        except ValueError:
+                            print("Value Error with item price check")
+                    silver_balance = get_account_silver_balance()
+
+    time.sleep(.2)
+    print("Have done fast buying items")
 
 def make_sell_order_on_item():
     pyautogui.click(mouse_targets["buy_order_button"])
@@ -366,6 +493,76 @@ def make_sell_orders():
         make_sell_order_on_item()
         return make_sell_orders()
 
+def make_market_only_orders():
+    pyautogui.click(mouse_targets["market_create_buy_order_tab"])
+    time.sleep(.1)
+
+    worksheet = spreadsheet.get_worksheet(configuration.database_sheets["items_to_buy_market_only"])
+    items_to_buy_data = worksheet.get_all_values()
+    items_to_buy_data_frame = pandas.DataFrame(items_to_buy_data[1:], columns=items_to_buy_data[0])
+
+    silver_balance = get_account_silver_balance()
+
+    i = 0
+    for column_index in range(0, len(items_to_buy_data_frame.columns), 1):
+        for row_index in range(0, len(items_to_buy_data_frame.iloc[:, column_index])):
+            if items_to_buy_data_frame.iloc[row_index, column_index] != "" and type(items_to_buy_data_frame.iloc[row_index, column_index]) != type(1.11):
+                if silver_balance > configuration.minimum_account_silver_balance:
+                    i += 1
+                    if i%10 == 0:
+                        silver_balance = get_account_silver_balance()
+                    item_order_price = 0
+                    item_sell_price = 0
+
+                    item_full_title = items_to_buy_data_frame.iloc[row_index, column_index]
+                    item_name, item_tier, item_enchantment = item_full_title.split("_")
+                    pyautogui.click(mouse_targets["market_search_reset"])
+                    time.sleep(.1)
+                    pyautogui.click(mouse_targets["market_search"])
+                    pyautogui.typewrite(item_name)
+                    time.sleep(.1)
+                    pyautogui.click(mouse_targets["market_tier"])
+                    time.sleep(.1)
+                    pyautogui.click(mouse_targets[f"market_tier_{item_tier}"])
+                    pyautogui.click(mouse_targets["market_enchantment"])
+                    time.sleep(.1)
+                    pyautogui.click(mouse_targets[f"market_enchantment_{item_enchantment}"])
+                    time.sleep(.1)
+                    pyautogui.click(mouse_targets["buy_order_button"])
+                    time.sleep(.1)
+
+                    if i == 1:
+                        check_statistics_open()
+
+                    text = get_text_from_screenshot(screenshot_positions["buy_order_price"])
+                    if text != "":
+                        try:
+                            item_order_price = int("".join(filter(str.isdigit, text)))
+                        except ValueError:
+                            print("Value Error with item price check")
+                    text = get_text_from_screenshot(screenshot_positions["sell_order_price"])
+                    if text != "":
+                        try:
+                            item_sell_price = int("".join(filter(str.isdigit, text)))
+                        except ValueError:
+                            print("Value Error with item price check")
+
+                    if item_sell_price != 0 and item_order_price != 0:
+                        if item_order_price * configuration.minimum_market_only_profit_rate <= item_sell_price:
+                            pyautogui.click(mouse_targets["one_silver_more"])
+                            pyautogui.click(mouse_targets["create_order_button"])
+                            time.sleep(.1)
+                            pyautogui.click(mouse_targets["crate_order_confirmation"])
+                            time.sleep(.1)
+                        else:
+                            pyautogui.click(mouse_targets["close_order_tab"])
+                            time.sleep(.2)   
+
+                        print(item_full_title, item_sell_price, item_order_price)
+                    else:
+                        pyautogui.click(mouse_targets["close_order_tab"])
+                        time.sleep(.2)
+                    
 
 def check_mouse_click_position():
     from pynput.mouse import Listener, Button
@@ -381,8 +578,13 @@ def main():
     #window = window_capture.get_window()
     #win32gui.ShowWindow(window, win32con.SW_RESTORE)
     #win32gui.SetForegroundWindow(window)
+    #check_prices_date("caerleon")
+    #update_items_price(pandas.read_csv(local_sheet_file_path), "caerleon", False, ["hoods", "jackets", "shoes", "helmets", "armors", "boots", "shapeshifters"])
+    make_buy_orders("lymhurst")
     #make_sell_orders()
-    window_capture.get_screenshot(screenshot_positions["buy_order_price"])
+    #make_market_only_orders()
+    #cancel_orders("black_market")
+    #fast_buy_items()
 
 if __name__ == "__main__":
     main()

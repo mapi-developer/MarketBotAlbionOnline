@@ -1,7 +1,7 @@
 import cv2 as cv
 import os
 import time
-from scripts.windowcapture_windows import WindowCapture
+from scripts.windowcapture import WindowCapture
 import pyautogui
 import bot_config
 import json
