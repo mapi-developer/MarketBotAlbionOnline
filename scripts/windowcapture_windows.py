@@ -3,6 +3,8 @@ from PIL import Image
 import os
 import win32gui, win32ui
 from pathlib import Path
+import cv2 as cv
+import pytesseract
 
 class WindowCapture:
     width = 0
@@ -57,14 +59,23 @@ class WindowCapture:
             print("Failed to capture the window!")
             return None
         
+    def get_text_from_screenshot(self, crop_screenshot_positions, is_gray_reading=True):
+        screenshot_file_path = os.path.join(Path.cwd().parent, "images\cropped_zone_screenshot.png")
+        gray_screenshot_file_path = os.path.join(Path.cwd().parent, "images\gray_cropped_zone_screenshot.png")
+        screenshot = self.get_screenshot(crop_screenshot_positions[0], crop_screenshot_positions[1], crop_screenshot_positions[2], crop_screenshot_positions[3])
+        screenshot.save(screenshot_file_path)
+        screenshot = cv.imread(screenshot_file_path)
+        if is_gray_reading == True:
+            gray_screenshot = cv.cvtColor(screenshot, cv.COLOR_BGR2GRAY)
+            gray_screenshot = cv.threshold(gray_screenshot, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)[1]
+            cv.imwrite(gray_screenshot_file_path, gray_screenshot)
+            text = pytesseract.image_to_string(gray_screenshot, config="--psm 6").rstrip("\n").lower()
+        else:
+            text = pytesseract.image_to_string(screenshot, config="--psm 6").rstrip("\n").lower()
+        return text
+        
     def get_window_resolution(self):
-        return "1920x1080"
+        return f"{self.width}x{self.height}"
     
     def get_window(self):
         return self.hwnd
-
-    def list_window_names(self):
-        def winEnumHandler(hwnd, ctx):
-            if win32gui.IsWindowVisible(hwnd):
-                print(hex(hwnd), win32gui.GetWindowText(hwnd))
-        win32gui.EnumWindows(winEnumHandler, None)
