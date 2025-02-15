@@ -1,3 +1,6 @@
+sctipts/__pycache__
 scripts/login_data.py
 scripts/items-prices-albion-credentials.json
 images
+data
+bot_version_2.0.py
