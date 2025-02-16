@@ -10,6 +10,7 @@ import csv
 from oauth2client.service_account import ServiceAccountCredentials
 from pathlib import Path
 from datetime import datetime, timezone
+from pynput import keyboard, mouse
 import win32con
 import win32gui
 import windowcapture_windows as windowcapture
@@ -92,10 +93,10 @@ def change_account(account_name, characer_number=1):
     if current_game_frame != "login":
         logout()
     pyautogui.click(mouse_targets["login_email"])
-    pyautogui.typewrite(configuration.login_data[account_name]["email"])
+    pyautogui.typewrite(login_data[account_name]["email"])
     time.sleep(.1)
     pyautogui.click(mouse_targets["login_password"])
-    pyautogui.typewrite(configuration.login_data[account_name]["password"])
+    pyautogui.typewrite(login_data[account_name]["password"])
     time.sleep(.1)
     pyautogui.click(mouse_targets["login_button"])
     time.sleep(2)
@@ -225,7 +226,7 @@ def check_statistics_open():
         pyautogui.click(mouse_targets["extend_item_statistic"])
         time.sleep(.2)
 
-def make_buy_orders(city_name):
+def make_buy_orders(city_name, items_categories_to_check=["all"]):
     silver_balance = get_account_silver_balance()
     pyautogui.click(mouse_targets["market_create_buy_order_tab"])
     time.sleep(.1)
@@ -238,61 +239,62 @@ def make_buy_orders(city_name):
     
     i = 0
     for column_index in range(0, len(items_to_buy_data_frame.columns), 1):
-        for row_index in range(0, len(items_to_buy_data_frame.iloc[:, column_index])):
-            if items_to_buy_data_frame.iloc[row_index, column_index] != "" and type(items_to_buy_data_frame.iloc[row_index, column_index]) != type(1.11):
-                if silver_balance > configuration.minimum_account_silver_balance:
-                    i += 1
-                    if i%10 == 0:
-                        silver_balance = get_account_silver_balance()
-                    item_category = items_to_buy_data_frame.columns[column_index]
-                    item_full_title = items_to_buy_data_frame.iloc[row_index, column_index]
-                    item_price_column_index = int(prices_caerleon_data_frame.columns.get_loc(item_category))
-                    item_price_row_index = int(prices_caerleon_data_frame.index[prices_caerleon_data_frame[item_category] == item_full_title].tolist()[0])
-                    item_price_caerleon = int(prices_caerleon_data_frame.iat[item_price_row_index, item_price_column_index+1])
-                    item_name, item_tier, item_enchantment = item_full_title.split("_")
-                    pyautogui.click(mouse_targets["market_search_reset"])
-                    time.sleep(.1)
-                    pyautogui.click(mouse_targets["market_search"])
-                    pyautogui.typewrite(item_name)
-                    time.sleep(.1)
-                    pyautogui.click(mouse_targets["market_tier"])
-                    time.sleep(.1)
-                    pyautogui.click(mouse_targets[f"market_tier_{item_tier}"])
-                    pyautogui.click(mouse_targets["market_enchantment"])
-                    time.sleep(.1)
-                    pyautogui.click(mouse_targets[f"market_enchantment_{item_enchantment}"])
-                    time.sleep(.1)
-                    pyautogui.click(mouse_targets["buy_order_button"])
-                    time.sleep(.1)
-                    if i == 1:
-                        check_statistics_open()
+        if items_categories_to_check == ["all"] or items_to_buy_data_frame.columns[column_index] in items_categories_to_check:
+            for row_index in range(0, len(items_to_buy_data_frame.iloc[:, column_index])):
+                if items_to_buy_data_frame.iloc[row_index, column_index] != "" and type(items_to_buy_data_frame.iloc[row_index, column_index]) != type(1.11):
+                    if silver_balance > configuration.minimum_account_silver_balance:
+                        i += 1
+                        if i%10 == 0:
+                            silver_balance = get_account_silver_balance()
+                        item_category = items_to_buy_data_frame.columns[column_index]
+                        item_full_title = items_to_buy_data_frame.iloc[row_index, column_index]
+                        item_price_column_index = int(prices_caerleon_data_frame.columns.get_loc(item_category))
+                        item_price_row_index = int(prices_caerleon_data_frame.index[prices_caerleon_data_frame[item_category] == item_full_title].tolist()[0])
+                        item_price_caerleon = int(prices_caerleon_data_frame.iat[item_price_row_index, item_price_column_index+1])
+                        item_name, item_tier, item_enchantment = item_full_title.split("_")
+                        pyautogui.click(mouse_targets["market_search_reset"])
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets["market_search"])
+                        pyautogui.typewrite(item_name)
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets["market_tier"])
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets[f"market_tier_{item_tier}"])
+                        pyautogui.click(mouse_targets["market_enchantment"])
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets[f"market_enchantment_{item_enchantment}"])
+                        time.sleep(.1)
+                        pyautogui.click(mouse_targets["buy_order_button"])
+                        time.sleep(.1)
+                        if i == 1:
+                            check_statistics_open()
 
-                    text = window_capture.get_text_from_screenshot(screenshot_positions["buy_order_price"])
-                    if text != "":
-                        try:
-                            item_order_price = int("".join(filter(str.isdigit, text)))
-                        except ValueError:
-                            print("Value Error with item price check")
-                    item_amount = configuration.get_items_amount(item_order_price)
-                    silver_to_buy = item_amount * item_order_price * 1.05
-                    print(silver_balance, silver_to_buy)
-                    if item_order_price * configuration.minimum_order_profit_rate < item_price_caerleon and silver_balance > silver_to_buy:
-                        time.sleep(.1)
-                        pyautogui.click(mouse_targets["change_item_amount_in_order"])
-                        pyautogui.typewrite(str(item_amount))
-                        time.sleep(.1)
-                        pyautogui.click(mouse_targets["one_silver_more"])
-                        pyautogui.click(mouse_targets["create_order_button"])
-                        time.sleep(.1)
-                        pyautogui.click(mouse_targets["crate_order_confirmation"])
-                        time.sleep(.1)
-                        print(f"Made order on {item_name} {item_tier}.{item_enchantment}")
+                        text = window_capture.get_text_from_screenshot(screenshot_positions["buy_order_price"])
+                        if text != "":
+                            try:
+                                item_order_price = int("".join(filter(str.isdigit, text)))
+                            except ValueError:
+                                print("Value Error with item price check")
+                        item_amount = configuration.get_items_amount(item_order_price)
+                        silver_to_buy = item_amount * item_order_price * 1.05
+                        print(silver_balance, silver_to_buy)
+                        if item_order_price * configuration.minimum_order_profit_rate < item_price_caerleon and silver_balance > silver_to_buy:
+                            time.sleep(.1)
+                            pyautogui.click(mouse_targets["change_item_amount_in_order"])
+                            pyautogui.typewrite(str(item_amount))
+                            time.sleep(.1)
+                            pyautogui.click(mouse_targets["one_silver_more"])
+                            pyautogui.click(mouse_targets["create_order_button"])
+                            time.sleep(.1)
+                            pyautogui.click(mouse_targets["crate_order_confirmation"])
+                            time.sleep(.1)
+                            print(f"Made order on {item_name} {item_tier}.{item_enchantment}")
+                        else:
+                            pyautogui.click(mouse_targets["close_order_tab"])
+                            time.sleep(.1)
                     else:
-                        pyautogui.click(mouse_targets["close_order_tab"])
-                        time.sleep(.1)
-                else:
-                    print("Not enough silver to continue")
-                    return False
+                        print("Not enough silver to continue")
+                        return False
                 
 def BuyItemFromMarket(item_caerleon_price, item_full_title):
     item_name, item_tier, item_enchantment = item_full_title.split("_")
@@ -511,15 +513,237 @@ def make_market_only_orders():
                         pyautogui.click(mouse_targets["close_order_tab"])
                         time.sleep(.2)
 
+def island_plant(plot_type="farm"):
+    def plant_farm_spot():
+        pyautogui.press("t")
+        time.sleep(.1)
+        pyautogui.click(1599, 954)
+        time.sleep(.1)
+        pyautogui.click(1558, 953)
+        time.sleep(.2)
+        pyautogui.click(1533, 557)
+        time.sleep(.1)
+        pyautogui.click(746, 371)
+        time.sleep(1)
+        pyautogui.press("t")
+        pyautogui.press("a")
+        time.sleep(1)
+        pyautogui.moveTo(884, 301, .2)
+        pyautogui.click(884, 301)
+        time.sleep(2)
+        pyautogui.moveTo(1046, 255, .2)
+        pyautogui.click(1046, 255)
+        time.sleep(2)
+        pyautogui.moveTo(1231, 188, .2)
+        pyautogui.click(1231, 188)
+        time.sleep(2)
+        pyautogui.moveTo(1108, 74, .2)
+        pyautogui.click(1108, 74)
+        time.sleep(2)
+        pyautogui.moveTo(961, 15, .2)
+        pyautogui.click(961, 15)
+        time.sleep(2)
+        pyautogui.moveTo(971, 138, .2)
+        pyautogui.click(971, 138)
+        time.sleep(2)
+        pyautogui.moveTo(807, 61, .2)
+        pyautogui.click(807, 61)
+        time.sleep(2)
+        pyautogui.moveTo(784, 194, .2)
+        pyautogui.click(784, 194)
+        time.sleep(2)
+        pyautogui.moveTo(643, 108, .2)
+        pyautogui.click(643, 108)
+        time.sleep(2)
+        pyautogui.click(1196, 763)
+        pyautogui.press("a")
+        time.sleep(5.2)
+    
+    if plot_type == "farm":
+        pyautogui.rightClick(1426, 66)
+        time.sleep(2.5)
+        pyautogui.rightClick(1067, 217)
+        time.sleep(1)
+        pyautogui.rightClick(198, 580)
+        time.sleep(.1)
+        plant_farm_spot()
+        print("Spot 1 is planted")
+
+        pyautogui.rightClick(1171, 21)
+        time.sleep(2.5)
+        pyautogui.rightClick(1005, 434)
+        time.sleep(.1)
+        plant_farm_spot()
+        print("Spot 2 is planted")  
+
+        pyautogui.rightClick(1069, 9)
+        time.sleep(3)
+        pyautogui.rightClick(1015, 18)
+        time.sleep(3)
+        pyautogui.rightClick(248, 236)
+        time.sleep(.1)
+        plant_farm_spot()
+        print("Spot 3 is planted")  
+
+        pyautogui.rightClick(503, 1079)
+        time.sleep(3)
+        pyautogui.rightClick(995, 702)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 4 is planted")
+
+        pyautogui.rightClick(1575, 82)
+        time.sleep(4)
+        pyautogui.rightClick(1811, 755)
+        time.sleep(2.5)
+        pyautogui.rightClick(1361, 938)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 5 is planted")
+
+        pyautogui.rightClick(1763, 518)
+        time.sleep(4)
+        pyautogui.rightClick(1442, 1079)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 6 is planted")
+
+        pyautogui.rightClick(1350, 703)
+        time.sleep(2)
+        pyautogui.rightClick(1171, 851)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 7 is planted")
+
+        pyautogui.rightClick(1501, 132)
+        time.sleep(4)
+        plant_farm_spot()
+        print("Spot 8 is planted")
+
+        pyautogui.rightClick(1337, 722)
+        time.sleep(2)
+        pyautogui.rightClick(1167, 804)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 9 is planted")
+
+        pyautogui.rightClick(259, 1068)
+        time.sleep(2)
+        pyautogui.rightClick(692, 873)
+        time.sleep(2)
+        pyautogui.rightClick(724, 884)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 10 is planted")
+
+        pyautogui.rightClick(758, 594)
+        time.sleep(2)
+        pyautogui.rightClick(1534, 942)
+        time.sleep(2)
+        pyautogui.rightClick(1635, 747)
+        time.sleep(2)
+        pyautogui.rightClick(1413, 719)
+        time.sleep(2)
+        pyautogui.rightClick(1059, 833)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 11 is planted")
+
+        pyautogui.rightClick(429, 958)
+        time.sleep(2)
+        pyautogui.rightClick(920, 910)
+        time.sleep(2)
+        pyautogui.rightClick(1068, 982)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 12 is planted")
+
+        pyautogui.rightClick(554, 31)
+        time.sleep(3)
+        pyautogui.rightClick(671, 363)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 13 is planted")
+
+        pyautogui.rightClick(1201, 24)
+        time.sleep(4)
+        pyautogui.rightClick(673, 32)
+        time.sleep(3)
+        pyautogui.rightClick(616, 224)
+        time.sleep(2)
+        pyautogui.rightClick(523, 933)
+        time.sleep(2)
+        pyautogui.rightClick(650, 600)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 14 is planted")
+
+        pyautogui.rightClick(392, 285)
+        time.sleep(3)
+        pyautogui.rightClick(407, 614)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 15 is planted")
+
+        pyautogui.rightClick(1330, 36)
+        time.sleep(4)
+        pyautogui.rightClick(1439, 91)
+        time.sleep(2)
+        pyautogui.rightClick(494, 167)
+        time.sleep(2)
+        plant_farm_spot()
+        print("Spot 16 is planted")
+
+        pyautogui.rightClick(539, 339)
+        time.sleep(2)
+        pyautogui.rightClick(367, 903)
+        time.sleep(2)
+        pyautogui.rightClick(320, 906)
+        time.sleep(2)
+        pyautogui.rightClick(584, 772)
+        time.sleep(2)
+
+def return_to_guild_island(city_name="fort_sterling", from_island_type="player"):
+    if from_island_type == "player":
+        pyautogui.click(721, 362)
+        time.sleep(.5)
+        pyautogui.click(mouse_targets["travel_to"])
+        time.sleep(.1)
+        pyautogui.typewrite(configuration.islands[f"market_guild_{city_name}"])
+        time.sleep(.1)
+        pyautogui.moveTo(mouse_targets["travel_to_drop_down"], duration=.1)
+        pyautogui.click(mouse_targets["travel_to_drop_down"])
+        time.sleep(.1)
+        pyautogui.click(mouse_targets["buy_journey_button"])
+        print(f"Successfully returned on {city_name} guild island")
+
 def check_mouse_click_position():
-    from pynput.mouse import Listener, Button
-    def on_click(x, y, button, pressed):
-        if pressed and button == Button.left:
-            print(f'x={x} and y={y}')
-        if pressed and button == Button.right:
+    def on_press(key):
+        try:
+            print(f"Key pressed: {key.char} | Keycode: {ord(key.char)}")
+        except AttributeError:
+            print(f"Special key pressed: {key} | Keycode: {key.value.vk if hasattr(key, 'value') and key.value else 'Unknown'}")
+
+    def on_release(key):
+        if key == keyboard.Key.shift_r:  # Stop listener when ESC is pressed
             return False
-    with Listener(on_click=on_click) as listener:
-        listener.join()
+
+    def on_click(x, y, button, pressed):
+        if pressed and button == mouse.Button.left:
+            print(f'Left mouse click: [{x}, {y}]')
+        if pressed and button == mouse.Button.right:
+            print(f'Right mouse click" [{x}, {y}]')
+        if pressed and button == mouse.Button.middle:
+            return False
+        
+    keyboard_listener = keyboard.Listener(on_press=on_press, on_release=on_release)
+    mouse_listener = mouse.Listener(on_click=on_click)
+    
+    keyboard_listener.start()
+    mouse_listener.start()
+
+    keyboard_listener.join()
+    mouse_listener.join()
 
 def main():
     window = window_capture.get_window()
@@ -527,10 +751,10 @@ def main():
     win32gui.SetForegroundWindow(window)
     #check_prices_date("caerleon")
     #update_items_price(pandas.read_csv(local_sheet_file_path), "caerleon", False, ["hoods", "jackets", "shoes", "helmets", "armors", "boots", "shapeshifters"])
-    make_buy_orders("lymhurst")
+    #make_buy_orders("lymhurst", ["all"])
     #make_sell_orders()
     #make_market_only_orders()
-    #cancel_orders("black_market")
+    #cancel_orders("royal_market")
     #check_mouse_click_position()
     #fast_buy_items()
 

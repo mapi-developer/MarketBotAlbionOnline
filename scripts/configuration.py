@@ -9,6 +9,14 @@ minimum_market_only_profit_rate = 1.9
 blackmarket_fast_sell_price_gap = 0.03
 minimum_account_silver_balance = 1000000
 
+islands = {
+    "market_guild_lymhurst": "Matvey4a Guild's Island - Lymhurst",
+    "market_guild_caerleon": "Matvey4a Guild's Island - Caerleon",
+    "market_guild_fort_sterling": "Matvey4a Guild's Island - Fort Sterling",
+    "market_guild_martlock": "Matvey4a Guild's Island - Martlock",
+    "gardener_island_1": "Matvey4a's Island - Fort Sterling"
+}
+
 database_sheets = {
     "caerleon": 0,
     "items_to_buy_lymhurst": 1,
@@ -77,7 +85,10 @@ mouse_targets = {
         "extend_item_statistic": [1294, 297],
         "order_no_longer_exist_ok": [957, 540],
         "buy_fast": [538, 477],
-        "change_to_make_buy_order": [531, 535]
+        "change_to_make_buy_order": [531, 535],
+        "travel_to": [178, 269],
+        "travel_to_drop_down": [182, 287],
+        "buy_journey_button": [348, 902]
     },
     "1440x900": {
         "market_search": [554, 236],
