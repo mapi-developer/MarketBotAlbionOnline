@@ -513,7 +513,19 @@ def make_market_only_orders():
                         pyautogui.click(mouse_targets["close_order_tab"])
                         time.sleep(.2)
 
-def island_plant(plot_type="farm"):
+
+def travel_to_island(island_name="Matvey4a Guild's Island - Fort Sterling"):
+    pyautogui.click(mouse_targets["travel_to"])
+    time.sleep(.1)
+    pyautogui.typewrite(island_name)
+    time.sleep(.1)
+    pyautogui.moveTo(mouse_targets["travel_to_drop_down"], duration=.1)
+    pyautogui.click(mouse_targets["travel_to_drop_down"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["buy_journey_button"])
+    time.sleep(8)
+
+def plant_island(plot_type="farm"):
     def plant_farm_spot():
         pyautogui.press("t")
         time.sleep(.1)
@@ -702,20 +714,69 @@ def island_plant(plot_type="farm"):
         time.sleep(2)
         pyautogui.rightClick(584, 772)
         time.sleep(2)
-
-def return_to_guild_island(city_name="fort_sterling", from_island_type="player"):
-    if from_island_type == "player":
         pyautogui.click(721, 362)
         time.sleep(.5)
-        pyautogui.click(mouse_targets["travel_to"])
-        time.sleep(.1)
-        pyautogui.typewrite(configuration.islands[f"market_guild_{city_name}"])
-        time.sleep(.1)
-        pyautogui.moveTo(mouse_targets["travel_to_drop_down"], duration=.1)
-        pyautogui.click(mouse_targets["travel_to_drop_down"])
-        time.sleep(.1)
-        pyautogui.click(mouse_targets["buy_journey_button"])
-        print(f"Successfully returned on {city_name} guild island")
+
+def setup_for_island_planting():
+    pyautogui.click(mouse_targets["go_to_chest_guild_island"])
+    time.sleep(5)
+    
+    pyautogui.click(mouse_targets["bank_choose_tab"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_2_loot_tab"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_move_all_button"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_move_all_from_inventory"])
+    time.sleep(.1)
+
+    
+    pyautogui.click(mouse_targets["bank_choose_tab"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_1_loot_tab"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_stack_items"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_sort_items"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_item_1"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_take_item_button"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["inventory_item_1"])
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_take_item_change_amount"])
+    time.sleep(.1)
+    pyautogui.typewrite(str(144))
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["bank_take_item_split_button"])
+    time.sleep(.2)
+    pyautogui.moveTo(mouse_targets["inventory_item_1"])
+    pyautogui.mouseDown()
+    pyautogui.moveTo(mouse_targets["bank_item_1"], duration=.2)
+    pyautogui.mouseUp()
+    time.sleep(.3)
+    pyautogui.press("esc")
+    time.sleep(.1)
+    pyautogui.click(mouse_targets["go_to_traveler_from_chest_guild_island"])
+    time.sleep(5)
+    pyautogui.click(mouse_targets["enter_traveler_from_guild_island"])
+    time.sleep(1)
+
+def harvest_island(plot_type="farm"):
+    print("Harvested Island")
+
+def make_island_cycle(city_name="fort_sterling", island_name="Matvey4a's Island - Fort Sterling", island_type="player", island_plots_type="farm"):
+    if island_type == "player":
+        pyautogui.click(mouse_targets["enter_traveler_after_login"])
+        travel_to_island(island_name)
+        harvest_island(island_plots_type)
+        travel_to_island(configuration.islands[f"market_guild_{city_name}"])
+        setup_for_island_planting()
+        travel_to_island(island_name)
+        plant_island(island_plots_type)
+        travel_to_island(configuration.islands[f"market_guild_{city_name}"])
+
 
 def check_mouse_click_position():
     def on_press(key):
