@@ -108,6 +108,7 @@ def change_account(account_name, characer_number=1):
     time.sleep(5)
     print(f"Successfully logged into {account_name}")
 
+# market functions
 def check_item_price(item_full_title, city_name):
     item_name, item_tier, item_enchantment = item_full_title.split("_")
     best_item_price = 0
@@ -513,7 +514,7 @@ def make_market_only_orders():
                         pyautogui.click(mouse_targets["close_order_tab"])
                         time.sleep(.2)
 
-
+# islands (farm, workers) functions
 def travel_to_island(island_name="Matvey4a Guild's Island - Fort Sterling"):
     pyautogui.click(mouse_targets["travel_to"])
     time.sleep(.1)
@@ -777,7 +778,7 @@ def make_island_cycle(city_name="fort_sterling", island_name="Matvey4a's Island 
         plant_island(island_plots_type)
         travel_to_island(configuration.islands[f"market_guild_{city_name}"])
 
-
+# debug functions
 def check_mouse_click_position():
     def on_press(key):
         try:
