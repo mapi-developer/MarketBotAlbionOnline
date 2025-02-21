@@ -3,8 +3,8 @@ window_title = "Albion Online Client"
 google_sheet_scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 
 prices_update_time_gap = 6*60*60
-minimum_order_profit_rate = 1.6
-minimum_fast_buy_profit_rate = 1.5
+minimum_order_profit_rate = 1.8
+minimum_fast_buy_profit_rate = 1.6
 minimum_market_only_profit_rate = 1.9
 blackmarket_fast_sell_price_gap = 0.03
 minimum_account_silver_balance = 1000000
@@ -174,7 +174,7 @@ mouse_targets = {
         "go_to_chest_guild_island": [1542, 82],
         "go_to_traveler_from_chest_guild_island": [188, 856],
         "enter_traveler_from_guild_island": [815, 371],
-        "enter_traveler_after_login": [836, 289],
+        "enter_traveler_after_login": [829, 285],
         "enter_traveler_after_join_player_island": [820, 482],
         "bank_choose_tab": [130, 197],
         "bank_local_tab": [109, 193],
@@ -193,7 +193,8 @@ mouse_targets = {
         "inventory_item_2": [1605, 554],
         "worker_accept_journal_button": [131, 907],
         "worker_decline_journal_button": [339, 898],
-        "worker_journal_slot": [112, 680]
+        "worker_journal_slot": [112, 680],
+        "harvest_farm_spot_close": [1207, 564]
     },
     "1440x900": {
         "market_search": [554, 236],
