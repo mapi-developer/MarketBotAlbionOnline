@@ -1,4 +1,5 @@
 __pycache__/
 media/
+tables/
 .vscode
-configuration.py
+**/configuration.py
