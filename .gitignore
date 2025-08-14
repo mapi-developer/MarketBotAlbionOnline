@@ -3,3 +3,5 @@ media/
 tables/
 .vscode
 **/configuration.py
+**/items-prices-albion-credentials.json
+**/login_data.py
