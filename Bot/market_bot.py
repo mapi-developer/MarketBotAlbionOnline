@@ -90,12 +90,20 @@ class bot():
             self.current_game_frame = self.get_current_game_frame()
             if self.current_game_frame == "login":
                 return
-            while self.current_game_frame != "escape_menu":
+            elif self.current_game_frame == "characters":
                 pyautogui.press("esc")
-                self.current_game_frame = self.get_current_game_frame()
-                time.sleep(.1)
-            pyautogui.click(self.mouse_targets["logout"])
-            time.sleep(10)
+                time.sleep(.2)
+                pyautogui.click(self.mouse_targets["logout_confirmation"])
+            else:
+                while self.current_game_frame != "escape_menu":
+                    pyautogui.press("esc")
+                    self.current_game_frame = self.get_current_game_frame()
+                    print(self.current_game_frame)
+                    time.sleep(.1)
+            
+                pyautogui.click(self.mouse_targets["logout"])
+                time.sleep(10)
+
             while self.current_game_frame != "login":
                 self.current_game_frame = self.get_current_game_frame()
                 time.sleep(.3)
@@ -149,7 +157,11 @@ class bot():
         keyboard_listener.join()
         mouse_listener.join()
 
-    def test(self):
-        self.check_mouse_click_position()
-        #print(self.get_current_game_frame())
-        #print(self.get_account_silver_balance())
+    def test(self, DEBUG=False):
+        if DEBUG:
+            self.check_mouse_click_position()
+        else:
+            self.window_capture.set_foreground_window()
+            #print(self.get_current_game_frame())
+            #print(self.get_account_silver_balance())
+            self.change_account('main_account')

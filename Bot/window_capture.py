@@ -1,7 +1,7 @@
 import ctypes
 from PIL import Image
 import os
-import win32gui, win32ui
+import win32gui, win32ui, win32con
 import cv2 as cv
 import pytesseract
 
@@ -77,3 +77,7 @@ class WindowCapture:
     
     def get_window(self):
         return self.hwnd
+    
+    def set_foreground_window(self):
+        win32gui.ShowWindow(self.hwnd, win32con.SW_RESTORE)
+        win32gui.SetForegroundWindow(self.hwnd)
