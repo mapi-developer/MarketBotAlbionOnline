@@ -17,9 +17,10 @@ from pynput import keyboard, mouse
 
 class bot():
     window_capture = None
-    googel_sheet = None
+    google_sheet = None
     mouse_targets = None
     screenshot_positions = None
+    prices_caerleon_local_sheet_file_path = None
     prices_caerleon_local = None
     current_game_frame = None
 
@@ -28,35 +29,26 @@ class bot():
         credentials_dir = os.path.join(BASE_DIR, 'items-prices-albion-credentials.json')  
         credentials = ServiceAccountCredentials.from_json_keyfile_name(credentials_dir, configuration.google_sheet_scope)
         client = gspread.authorize(credentials)
-        self.googel_sheet = client.open(configuration.google_sheet_name)
+        self.google_sheet = client.open(configuration.google_sheet_name)
 
         self.window_capture = window_capture.WindowCapture(BASE_DIR, configuration.window_title)
         window_resolution = self.window_capture.get_window_resolution()
         self.mouse_targets = configuration.mouse_targets[window_resolution]
         self.screenshot_positions = configuration.screenshot_positions[window_resolution]
 
-        prices_caerleon_local_sheet_file_path = os.path.join(BASE_DIR, "tables\prices_caerleon.csv")
-        self.prices_caerleon_local = pandas.read_csv(prices_caerleon_local_sheet_file_path)
+        self.prices_caerleon_local_sheet_file_path = os.path.join(BASE_DIR, "tables\prices_caerleon.csv")
+        self.prices_caerleon_local = pandas.read_csv(self.prices_caerleon_local_sheet_file_path)
 
         self.current_game_frame = ""
         print("Bot Initialized")
 
-    def get_current_game_frame(self):
-        game_frame = ""
-        if self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_game_frame_login"]).replace(" ", "") == "login":
-            game_frame = "login"
-        elif self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_game_frame_drops_popup"]).replace(" ", "") == "drops":
-            game_frame = "drops_popup"
-        elif self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_game_frmae_premium_popup"]).replace(" ", "") == "premium":
-            game_frame = "premium_popup"
-        elif self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_game_frame_activities_popup"]).replace(" ", "") == "activities":
-            game_frame = "activities_popup"
-        elif self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_game_frame_characters"]).replace(" ", "") == "characters":
-            game_frame = "characters"
-        elif self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_escape_menu"]).replace(" ", "") == "logout":
-            game_frame = "escape_menu"
 
-        return game_frame
+    def get_current_game_frame(self):
+        for key in configuration.game_frames:
+            if self.window_capture.get_text_from_screenshot(self.screenshot_positions[key]).replace(" ", "") == configuration.game_frames[key]:
+                return configuration.game_frames[key]
+        
+        return ""
 
     def get_account_silver_balance(self):
         def ConvertSilverToNumber(string):
@@ -95,13 +87,12 @@ class bot():
                 time.sleep(.2)
                 pyautogui.click(self.mouse_targets["logout_confirmation"])
             else:
-                while self.current_game_frame != "escape_menu":
+                while self.current_game_frame != "gamesettings":
                     pyautogui.press("esc")
                     self.current_game_frame = self.get_current_game_frame()
-                    print(self.current_game_frame)
                     time.sleep(.1)
             
-                pyautogui.click(self.mouse_targets["logout"])
+                pyautogui.click(self.window_capture.get_text_screen_position("logout"))
                 time.sleep(10)
 
             while self.current_game_frame != "login":
@@ -127,6 +118,95 @@ class bot():
         pyautogui.click(self.mouse_targets["enter_world_button"])
         time.sleep(5)
         print(f"Successfully logged into {account_name}")
+
+
+    # market functions
+    def check_item_price(self, item_full_title, city_name):
+        print(item_full_title)
+        item_name, item_tier, item_enchantment = item_full_title.split("_")
+        best_item_price = 0
+
+        pyautogui.click(self.mouse_targets["market_search_reset"])
+        time.sleep(.1)
+        pyautogui.click(self.mouse_targets["market_search"])
+        pyautogui.typewrite(item_name)
+        pyautogui.click(self.mouse_targets["market_tier"])
+        time.sleep(.1)
+        pyautogui.click(self.mouse_targets[f"market_tier_{item_tier}"])
+        pyautogui.click(self.mouse_targets["market_enchantment"])
+        time.sleep(.1)
+        pyautogui.click(self.mouse_targets[f"market_enchantment_{item_enchantment}"])
+
+        for i in configuration.qualities_list:
+            pyautogui.click(self.mouse_targets["market_quality"])
+            time.sleep(.1)
+            pyautogui.click(self.mouse_targets[f"market_quality_{i}"])
+            time.sleep(.1)
+
+            text = self.window_capture.get_text_from_screenshot(self.screenshot_positions[f"sell_price_{city_name}"])
+            if text != "":
+                try:
+                    item_price = int("".join(filter(str.isdigit, text)))
+                    if item_price > best_item_price:
+                        best_item_price = item_price  
+                except ValueError:
+                    print("Value Error with item price check")       
+
+        return best_item_price
+
+    def update_items_price(self, data_frame, city_name, only_zero_price=False, items_categories_to_check=["all"]):
+        items_categories_to_check=["cowl"]
+        pyautogui.click(self.mouse_targets["market_buy_tab"])
+        time.sleep(.1)
+        pyautogui.click(self.mouse_targets["price_sort_button"])
+        time.sleep(.1)
+        pyautogui.click(self.mouse_targets["price_highest_button"])
+
+        for column_index in range(1, len(data_frame.columns), 2):
+            if items_categories_to_check[0] == "all" or data_frame.columns[column_index] in items_categories_to_check:
+                for row_index in range(0, len(data_frame.iloc[:, column_index])):
+                    if data_frame.iloc[row_index, column_index] != "" and type(data_frame.iloc[row_index, column_index]) != type(1.11):
+                        item_full_title = data_frame.iloc[row_index, column_index]
+                        if only_zero_price == False or data_frame.iloc[row_index, column_index+1] == str(0):
+                            price = self.check_item_price(item_full_title, "caerleon")
+                            print(price)
+                            data_frame.iloc[row_index, column_index+1] = self.check_item_price(item_full_title, "caerleon")
+
+        data_frame.iloc[0, 0] = datetime.strptime(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
+
+        data_frame.to_csv(self.prices_caerleon_local_sheet_file_path, index=False)
+        worksheet = self.google_sheet.get_worksheet(configuration.database_sheets[city_name])
+        local_data = open(self.prices_caerleon_local_sheet_file_path, "r")
+        values = [r for r in csv.reader(local_data)]
+        worksheet.update(values)
+        print("Updated prices from game")
+
+    def check_prices_date(self, city_name, only_zero_price=False):        
+        worksheet = self.google_sheet.get_worksheet(configuration.database_sheets[city_name])
+        google_sheet_data = worksheet.get_all_values()
+        google_sheet_data_frame = pandas.DataFrame(google_sheet_data[1:], columns=google_sheet_data[0])
+        self.prices_caerleon_local = pandas.read_csv(self.prices_caerleon_local_sheet_file_path)
+        google_sheet_last_update = google_sheet_data_frame.iloc[0]["last update"]
+        local_sheet_last_update = self.prices_caerleon_local.iloc[0]["last update"]
+        google_sheet_last_update = datetime.strptime(google_sheet_last_update, '%Y-%m-%d %H:%M:%S')
+        local_sheet_last_update = datetime.strptime(local_sheet_last_update, '%Y-%m-%d %H:%M:%S')
+        current_datetime = datetime.strptime(datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S'), '%Y-%m-%d %H:%M:%S')
+
+        if local_sheet_last_update >= google_sheet_last_update:
+            if int((current_datetime - local_sheet_last_update).total_seconds()) > configuration.prices_update_time_gap:
+                self.update_items_price(self.prices_caerleon_local, city_name, only_zero_price)
+            else:
+                local_data = open(self.prices_caerleon_local_sheet_file_path, "r")
+                values = [r for r in csv.reader(local_data)]
+                worksheet.update(values)
+                print("Updated prices in DataBase from local data")
+        elif local_sheet_last_update < google_sheet_last_update:
+            if int((current_datetime - google_sheet_last_update).total_seconds()) > configuration.prices_update_time_gap:
+                self.update_items_price(self.prices_caerleon_local, city_name, only_zero_price)
+            else:
+                google_sheet_data_frame.to_csv(self.prices_caerleon_local_sheet_file_path, index=False)
+                print("Updated prices in local data from DataBase")
+
 
     # debug functions
     def check_mouse_click_position(self):
@@ -157,11 +237,15 @@ class bot():
         keyboard_listener.join()
         mouse_listener.join()
 
+
     def test(self, DEBUG=False):
         if DEBUG:
-            self.check_mouse_click_position()
+            #self.check_mouse_click_position()
+            self.window_capture.get_text_from_screenshot(self.screenshot_positions[f"sell_price_caerleon"])
         else:
             self.window_capture.set_foreground_window()
             #print(self.get_current_game_frame())
             #print(self.get_account_silver_balance())
-            self.change_account('main_account')
+            #self.change_account('main_account', 2)
+            #self.check_prices_date('caerleon')
+            self.update_items_price(self.prices_caerleon_local, 'caerleon')

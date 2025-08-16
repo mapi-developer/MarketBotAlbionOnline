@@ -71,6 +71,33 @@ class WindowCapture:
         else:
             text = pytesseract.image_to_string(screenshot, config="--psm 6").rstrip("\n").lower()
         return text
+    
+    def get_text_screen_position(self, target_text: str, is_gray_reading=True):
+        x,y = 0,0
+        screenshot_file_path = os.path.join(self.BASE_DIR, "media\cropped_zone_screenshot.png")
+        gray_screenshot_file_path = os.path.join(self.BASE_DIR, "media\gray_cropped_zone_screenshot.png")
+        screenshot = self.get_screenshot()
+        screenshot.save(screenshot_file_path)
+        screenshot = cv.imread(screenshot_file_path)
+        text_data = None
+        if is_gray_reading == True:
+            gray_screenshot = cv.cvtColor(screenshot, cv.COLOR_BGR2GRAY)
+            gray_screenshot = cv.threshold(gray_screenshot, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)[1]
+            cv.imwrite(gray_screenshot_file_path, gray_screenshot)
+            text_data = pytesseract.image_to_data(gray_screenshot, output_type=pytesseract.Output.DICT)
+        else:
+            text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
+
+        if text_data != None:
+            found_positions = []
+
+            for i, word in enumerate(text_data['text']):
+                if target_text.lower() in word.lower(): # Case-insensitive search
+                    if text_data['left'][i] > 2200 and text_data['top'][i] < 400:
+                        x = text_data['left'][i] + 10
+                        y = text_data['top'][i] + 10
+
+        return [x, y]
         
     def get_window_resolution(self):
         return f"{self.width}x{self.height}"
