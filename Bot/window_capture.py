@@ -89,8 +89,6 @@ class WindowCapture:
             text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
 
         if text_data != None:
-            found_positions = []
-
             for i, word in enumerate(text_data['text']):
                 if target_text.lower() in word.lower(): # Case-insensitive search
                     if text_data['left'][i] > 2200 and text_data['top'][i] < 400:

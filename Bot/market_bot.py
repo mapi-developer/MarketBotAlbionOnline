@@ -1,4 +1,5 @@
 import window_capture
+import window_capture_new
 import configuration
 from login_data import login_data
 
@@ -11,10 +12,8 @@ import re
 import gspread
 import pandas
 import csv
-from pathlib import Path
 from datetime import datetime, timezone
 from pynput import keyboard, mouse
-import threading
 
 class bot():
     window_capture = None
@@ -32,7 +31,7 @@ class bot():
         client = gspread.authorize(credentials)
         self.google_sheet = client.open(configuration.google_sheet_name)
 
-        self.window_capture = window_capture.WindowCapture(BASE_DIR, configuration.window_title)
+        self.window_capture = window_capture_new.WindowCapture(base_dir=BASE_DIR, window_name=configuration.window_title, debugging=False)
         window_resolution = self.window_capture.get_window_resolution()
         self.mouse_targets = configuration.mouse_targets[window_resolution]
         self.screenshot_positions = configuration.screenshot_positions[window_resolution]
@@ -154,20 +153,29 @@ class bot():
 
         return best_item_price
 
-    def update_items_price(self, data_frame, city_name, only_zero_price=False, items_categories_to_check=["all"]):
+    def update_items_price(self, data_frame=None, city_name="caerleon", only_zero_price=False, items_categories_to_check=["all"]):
+        if data_frame == None:
+            worksheet = self.google_sheet.get_worksheet(configuration.database_sheets[city_name])
+            google_sheet_data = worksheet.get_all_values()
+            data_frame = pandas.DataFrame(google_sheet_data[1:], columns=google_sheet_data[0])
+            
         pyautogui.click(self.mouse_targets["market_buy_tab"])
         time.sleep(.1)
         pyautogui.click(self.mouse_targets["price_sort_button"])
         time.sleep(.1)
         pyautogui.click(self.mouse_targets["price_highest_button"])
+        time.sleep(.1)
+        pyautogui.click(self.mouse_targets['item_sort_button'])
 
         for column_index in range(1, len(data_frame.columns), 2):
-            if items_categories_to_check[0] == "all" or data_frame.columns[column_index] in items_categories_to_check:
+            if items_categories_to_check[0] == "all" or data_frame.columns[column_index].lower() in items_categories_to_check:
                 for row_index in range(0, len(data_frame.iloc[:, column_index])):
                     if data_frame.iloc[row_index, column_index] != "" and type(data_frame.iloc[row_index, column_index]) != type(1):
                         item_full_title = data_frame.iloc[row_index, column_index]
-                        if only_zero_price == False or data_frame.iloc[row_index, column_index+1] == str(0):
-                            data_frame.iloc[row_index, column_index+1] = str(self.check_item_price(item_full_title, "caerleon"))
+                        if only_zero_price == False or data_frame.iloc[row_index, column_index+1] == str(0) and item_full_title !="":
+                            price = str(self.check_item_price(item_full_title, "caerleon"))
+                            print(f'{item_full_title} - {price}')
+                            data_frame.iloc[row_index, column_index+1] = price
 
                 data_frame.to_csv(self.prices_caerleon_local_sheet_file_path, index=False)
                 worksheet = self.google_sheet.get_worksheet(configuration.database_sheets[city_name])
@@ -243,6 +251,7 @@ class bot():
     def test(self, DEBUG=False):
         if DEBUG:
             #self.check_mouse_click_position()
+            print(self.window_capture.get_text_from_screenshot(self.screenshot_positions['sell_price_caerleon']))
             print("DEBUG")
         else:
             try:
@@ -251,6 +260,7 @@ class bot():
                 #print(self.get_account_silver_balance())
                 #self.change_account('main_account', 2)
                 #self.check_prices_date('caerleon')
-                self.update_items_price(self.prices_caerleon_local, 'caerleon', only_zero_price=False, items_categories_to_check=["sandals", "shoes", "boots"])
+                self.update_items_price(city_name='caerleon', only_zero_price=False, items_categories_to_check=["priest", "arcane"])
             except KeyboardInterrupt:
                 print('Forced to stop bot!')
+ 
