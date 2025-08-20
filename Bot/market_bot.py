@@ -1,5 +1,4 @@
 import window_capture
-import window_capture_new
 import configuration
 from login_data import login_data
 
@@ -31,7 +30,7 @@ class bot():
         client = gspread.authorize(credentials)
         self.google_sheet = client.open(configuration.google_sheet_name)
 
-        self.window_capture = window_capture_new.WindowCapture(base_dir=BASE_DIR, window_name=configuration.window_title, debugging=False)
+        self.window_capture = window_capture.WindowCapture(base_dir=BASE_DIR, window_name=configuration.window_title, debugging=False)
         window_resolution = self.window_capture.get_window_resolution()
         self.mouse_targets = configuration.mouse_targets[window_resolution]
         self.screenshot_positions = configuration.screenshot_positions[window_resolution]
@@ -62,7 +61,7 @@ class bot():
             else:
                 return False
 
-        if self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_inventory_open"]).replace(" ", "") != "inventory":
+        while self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_inventory_open"]).replace(" ", "") != "invenfory":
             pyautogui.press("i")
             time.sleep(.3)
         silver_balance_text_inentory = self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_account_silver_from_inventory"], True)
@@ -76,6 +75,8 @@ class bot():
             return silver_balance_number_inventory
         elif silver_balance_number_inventory != False and silver_balance_number != False:
             return silver_balance_number_inventory
+        else:
+            return 'cant check silver'
 
     def change_account(self, account_name, characer_number=1):
         def logout():
@@ -119,8 +120,19 @@ class bot():
         time.sleep(5)
         print(f"Successfully logged into {account_name}")
 
+    def check_statistics_open(self):
+        if self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_buy_orders_title"]) == "buy orders":
+            return True
+        else:
+            pyautogui.click(self.mouse_targets["extend_item_statistic"])
+            time.sleep(.2)
+            if self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_buy_orders_title"]) == "buy orders":
+                return True
+            else:
+                return self.check_statistics_open(self)
 
     # market functions
+    # price checking
     def check_item_price(self, item_full_title, city_name):
         item_name, item_tier, item_enchantment = item_full_title.split("_")
         best_item_price = 0
@@ -164,8 +176,8 @@ class bot():
         pyautogui.click(self.mouse_targets["price_sort_button"])
         time.sleep(.1)
         pyautogui.click(self.mouse_targets["price_highest_button"])
-        time.sleep(.1)
-        pyautogui.click(self.mouse_targets['item_sort_button'])
+        #time.sleep(.2)
+        #pyautogui.click(self.mouse_targets['item_sort_button'])
 
         for column_index in range(1, len(data_frame.columns), 2):
             if items_categories_to_check[0] == "all" or data_frame.columns[column_index].lower() in items_categories_to_check:
@@ -218,6 +230,113 @@ class bot():
                 google_sheet_data_frame.to_csv(self.prices_caerleon_local_sheet_file_path, index=False)
                 print("Updated prices in local data from DataBase")
 
+    # fast buy
+    def buy_item_from_market(self, item_caerleon_price, item_full_title, item_bought=0):
+        if item_bought >= 5:
+            return True
+        item_name, item_tier, item_enchantment = item_full_title.split("_")
+        item_price = 0
+        have_enough_silver = True
+        canMakeOrder = False
+        avaliable_amount = 1
+
+        text = self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_item_price_royal_city"])
+        if text != "":
+            try:
+                item_price = int("".join(filter(str.isdigit, text)))
+                if item_price * configuration.minimum_fast_buy_profit_rate < item_caerleon_price:
+                    canMakeOrder = True
+            except ValueError:
+                print("Value Error with item price check")
+
+        if canMakeOrder == True:
+            pyautogui.click(self.mouse_targets["buy_order_button"])
+            time.sleep(.2)
+            self.check_statistics_open()
+
+            avaliable_amount = self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_avaliable_amount"], True)
+            try:
+                avaliable_amount = int("".join(filter(str.isdigit, avaliable_amount)))
+            except ValueError:
+                avaliable_amount = 1
+
+            silver_to_buy = item_price * avaliable_amount * 1.05
+            silver_on_account = self.get_account_silver_balance()
+            if silver_on_account == "can't check silver":
+                print("Can't check silver")
+            elif silver_on_account < silver_to_buy:
+                have_enough_silver = False
+
+        if canMakeOrder == True and have_enough_silver == True:
+            time.sleep(.1)
+            if avaliable_amount > 1:
+                pyautogui.click(self.mouse_targets["change_item_amount_in_order"])
+                if avaliable_amount > 10:
+                    pyautogui.typewrite(str(10))
+                else:
+                    pyautogui.typewrite(str(avaliable_amount))
+                item_bought += avaliable_amount
+            else:
+                item_bought += 1
+            pyautogui.click(self.mouse_targets["create_order_button"])
+            time.sleep(.5)
+            print(f"Successfully bought {item_name} {item_tier}.{item_enchantment} - ({avaliable_amount}) || Profit - {item_caerleon_price - item_price}")
+            return self.buy_item_from_market(item_caerleon_price, item_full_title, item_bought=item_bought)
+        else:
+            if have_enough_silver == False:
+                return False
+            pyautogui.click(self.mouse_targets["close_order_tab"])
+            time.sleep(.1)
+            print(f"Can't fast buy {item_name} {item_tier}.{item_enchantment}")
+            return True
+
+    def fast_buy_items(self, items_categories_to_check=['all']):
+        silver_balance = self.get_account_silver_balance()
+        pyautogui.click(self.mouse_targets["market_buy_tab"])
+        time.sleep(.2)
+        pyautogui.click(self.mouse_targets["price_sort_button"])
+        time.sleep(.2)
+        pyautogui.click(self.mouse_targets["price_lowest_button"])
+
+        worksheet = self.google_sheet.get_worksheet(configuration.database_sheets[f"fast_buy_items"])
+        
+        items_to_buy_data = worksheet.get_all_values()
+        items_to_buy_data_frame = pandas.DataFrame(items_to_buy_data[1:], columns=items_to_buy_data[0])
+
+        prices_worksheet = self.google_sheet.get_worksheet(configuration.database_sheets['caerleon'])
+        google_sheet_data = prices_worksheet.get_all_values()
+        prices_caerleon_data_frame = pandas.DataFrame(google_sheet_data[1:], columns=google_sheet_data[0])
+
+        for column_index in range(0, len(items_to_buy_data_frame.columns), 1):
+            if items_categories_to_check[0] == 'all' or items_to_buy_data_frame.columns[column_index].lower() in items_categories_to_check:
+                for row_index in range(0, len(items_to_buy_data_frame.iloc[:, column_index])):
+                    if items_to_buy_data_frame.iloc[row_index, column_index] != "" and type(items_to_buy_data_frame.iloc[row_index, column_index]) != type(1.11):
+                        if silver_balance > configuration.minimum_account_silver_balance:
+                            item_category = items_to_buy_data_frame.columns[column_index]
+                            item_full_title = items_to_buy_data_frame.iloc[row_index, column_index]
+                            item_price_column_index = int(prices_caerleon_data_frame.columns.get_loc(item_category))
+                            item_price_row_index = int(prices_caerleon_data_frame.index[prices_caerleon_data_frame[item_category] == item_full_title].tolist()[0])
+                            item_price_caerleon = int(prices_caerleon_data_frame.iat[item_price_row_index, item_price_column_index+1])
+
+                            item_name, item_tier, item_enchantment = item_full_title.split("_")
+
+                            pyautogui.click(self.mouse_targets["market_search_reset"])
+                            time.sleep(.1)
+                            pyautogui.click(self.mouse_targets["market_search"])
+                            pyautogui.typewrite(item_name)
+                            pyautogui.click(self.mouse_targets["market_tier"])
+                            time.sleep(.1)
+                            pyautogui.click(self.mouse_targets[f"market_tier_{item_tier}"])
+                            pyautogui.click(self.mouse_targets["market_enchantment"])
+                            time.sleep(.1)
+                            pyautogui.click(self.mouse_targets[f"market_enchantment_{item_enchantment}"])
+                            time.sleep(.6)
+
+                            self.buy_item_from_market(item_price_caerleon, item_full_title)
+                            time.sleep(.3)
+
+        time.sleep(.2)
+        print("Have done fast buying items")
 
     # debug functions
     def check_mouse_click_position(self):
@@ -250,8 +369,9 @@ class bot():
 
     def test(self, DEBUG=False):
         if DEBUG:
+            self.window_capture.set_foreground_window()
             #self.check_mouse_click_position()
-            print(self.window_capture.get_text_from_screenshot(self.screenshot_positions['sell_price_caerleon']))
+            
             print("DEBUG")
         else:
             try:
@@ -260,7 +380,7 @@ class bot():
                 #print(self.get_account_silver_balance())
                 #self.change_account('main_account', 2)
                 #self.check_prices_date('caerleon')
-                self.update_items_price(city_name='caerleon', only_zero_price=False, items_categories_to_check=["priest", "arcane"])
+                self.update_items_price(city_name='caerleon', only_zero_price=False, items_categories_to_check=['bag'])
             except KeyboardInterrupt:
                 print('Forced to stop bot!')
  

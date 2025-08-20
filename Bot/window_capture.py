@@ -1,108 +1,269 @@
 import ctypes
-from PIL import Image
-import os
-import win32gui, win32ui, win32con
+from typing import Optional, Tuple, List
+
+import win32gui
+import win32ui
+import win32con
+import win32api
+import win32process
+
+import numpy as np
 import cv2 as cv
+from PIL import Image
 import pytesseract
 
-class WindowCapture:
-    BASE_DIR = None
-    width = 0
-    height = 0
-    hwnd = None
+from pathlib import Path
 
-    def __init__(self, BASE_DIR, window_name):
-        self.BASE_DIR = BASE_DIR
+
+class WindowCapture:
+    hwnd: int
+    width: int
+    height: int
+    debugging: bool
+    
+
+    def __init__(self, base_dir: Optional[str], window_name: str, debugging=False):
+        self.BASE_DIR = base_dir
+        self.debugging = debugging
         ctypes.windll.user32.SetProcessDPIAware()
+
         self.hwnd = win32gui.FindWindow(None, window_name)
         if not self.hwnd:
-            raise Exception("Window not found: {}".format(window_name))
-        
-        window_rect = win32gui.GetWindowRect(self.hwnd)
-        self.width = window_rect[2] - window_rect[0]
-        self.height = window_rect[3] - window_rect[1]
+            raise RuntimeError(f"Window not found: {window_name}")
 
-    def get_screenshot(self, x_0_crop=None, y_0_crop=None, x_1_crop=None, y_1_crop=None):
-        hwndDC = win32gui.GetWindowDC(self.hwnd)
-        mfcDC = win32ui.CreateDCFromHandle(hwndDC)
-        saveDC = mfcDC.CreateCompatibleDC()
-        saveBitMap = win32ui.CreateBitmap()
-        saveBitMap.CreateCompatibleBitmap(mfcDC, self.width, self.height)
-        saveDC.SelectObject(saveBitMap)
+        left, top, right, bottom = win32gui.GetWindowRect(self.hwnd)
+        self.width = int(right - left)
+        self.height = int(bottom - top)
 
-        # Capture the window
-        result = ctypes.windll.user32.PrintWindow(self.hwnd, saveDC.GetSafeHdc(), 2)
-        if result:
-            file_path = os.path.join(self.BASE_DIR, "media\window_capture.bmp")
-            saveBitMap.SaveBitmapFile(saveDC, file_path)
-            image = Image.open(file_path)
-            if x_0_crop == None:
-                saveDC.DeleteDC()
-                mfcDC.DeleteDC()
-                win32gui.ReleaseDC(self.hwnd, hwndDC)
-                win32gui.DeleteObject(saveBitMap.GetHandle())
-                return image
-            else: 
-                cropped_image = image.crop((x_0_crop, y_0_crop, x_1_crop, y_1_crop))
-                saveDC.DeleteDC()
-                mfcDC.DeleteDC()
-                win32gui.ReleaseDC(self.hwnd, hwndDC)
-                win32gui.DeleteObject(saveBitMap.GetHandle())
-                return cropped_image
-        else: 
-            saveDC.DeleteDC()
-            mfcDC.DeleteDC()
-            win32gui.ReleaseDC(self.hwnd, hwndDC)
-            win32gui.DeleteObject(saveBitMap.GetHandle())
-            print("Failed to capture the window!")
+    def _capture_np_bgra(self) -> Optional[np.ndarray]:
+        hwndDC = mfcDC = saveDC = saveBitMap = None
+        try:
+            hwndDC = win32gui.GetWindowDC(self.hwnd)
+            if not hwndDC:
+                return None
+
+            mfcDC = win32ui.CreateDCFromHandle(hwndDC)
+            saveDC = mfcDC.CreateCompatibleDC()
+            saveBitMap = win32ui.CreateBitmap()
+            saveBitMap.CreateCompatibleBitmap(mfcDC, self.width, self.height)
+            saveDC.SelectObject(saveBitMap)
+
+            PW_RENDERFULLCONTENT = 0x00000002
+            result = ctypes.windll.user32.PrintWindow(self.hwnd, saveDC.GetSafeHdc(), PW_RENDERFULLCONTENT)
+
+            if result != 1:
+                SRCCOPY = 0x00CC0020
+                saveDC.BitBlt((0, 0), (self.width, self.height), mfcDC, (0, 0), SRCCOPY)
+
+            bmpinfo = saveBitMap.GetInfo()
+            bmpbytes = saveBitMap.GetBitmapBits(True)
+
+            w = bmpinfo["bmWidth"]
+            h = bmpinfo["bmHeight"]
+            arr = np.frombuffer(bmpbytes, dtype=np.uint8)
+            try:
+                arr = arr.reshape((h, w, 4))
+            except ValueError:
+                return None
+
+            return arr
+
+        finally:
+            try:
+                if saveBitMap:
+                    win32gui.DeleteObject(saveBitMap.GetHandle())
+            except Exception:
+                pass
+            try:
+                if saveDC:
+                    saveDC.DeleteDC()
+            except Exception:
+                pass
+            try:
+                if mfcDC:
+                    mfcDC.DeleteDC()
+            except Exception:
+                pass
+            try:
+                if hwndDC:
+                    win32gui.ReleaseDC(self.hwnd, hwndDC)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _bgra_to_pil_rgb(bgra: np.ndarray) -> Image.Image:
+        """Convert BGRA ndarray -> PIL RGB Image (drops alpha)."""
+        rgb = cv.cvtColor(bgra, cv.COLOR_BGRA2RGB)
+        return Image.fromarray(rgb)
+
+    @staticmethod
+    def _pil_to_cv_bgr(pil_img: Image.Image) -> np.ndarray:
+        """PIL RGB -> OpenCV BGR ndarray."""
+        rgb = np.array(pil_img, copy=False)
+        return cv.cvtColor(rgb, cv.COLOR_RGB2BGR)
+
+    def get_screenshot(
+        self,
+        x_0_crop: Optional[int] = None,
+        y_0_crop: Optional[int] = None,
+        x_1_crop: Optional[int] = None,
+        y_1_crop: Optional[int] = None,
+    ) -> Optional[Image.Image]:
+
+        bgra = self._capture_np_bgra()
+        if bgra is None:
             return None
-        
-    def get_text_from_screenshot(self, crop_screenshot_positions, is_gray_reading=True):
-        screenshot_file_path = os.path.join(self.BASE_DIR, "media\cropped_zone_screenshot.png")
-        gray_screenshot_file_path = os.path.join(self.BASE_DIR, "media\gray_cropped_zone_screenshot.png")
-        screenshot = self.get_screenshot(crop_screenshot_positions[0], crop_screenshot_positions[1], crop_screenshot_positions[2], crop_screenshot_positions[3])
-        screenshot.save(screenshot_file_path)
-        screenshot = cv.imread(screenshot_file_path)
-        if is_gray_reading == True:
-            gray_screenshot = cv.cvtColor(screenshot, cv.COLOR_BGR2GRAY)
-            gray_screenshot = cv.threshold(gray_screenshot, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)[1]
-            cv.imwrite(gray_screenshot_file_path, gray_screenshot)
-            text = pytesseract.image_to_string(gray_screenshot, config="--psm 6").rstrip("\n").lower()
-        else:
-            text = pytesseract.image_to_string(screenshot, config="--psm 6").rstrip("\n").lower()
-        return text
-    
-    def get_text_screen_position(self, target_text: str, is_gray_reading=True):
-        x,y = 0,0
-        screenshot_file_path = os.path.join(self.BASE_DIR, "media\cropped_zone_screenshot.png")
-        gray_screenshot_file_path = os.path.join(self.BASE_DIR, "media\gray_cropped_zone_screenshot.png")
-        screenshot = self.get_screenshot()
-        screenshot.save(screenshot_file_path)
-        screenshot = cv.imread(screenshot_file_path)
-        text_data = None
-        if is_gray_reading == True:
-            gray_screenshot = cv.cvtColor(screenshot, cv.COLOR_BGR2GRAY)
-            gray_screenshot = cv.threshold(gray_screenshot, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)[1]
-            cv.imwrite(gray_screenshot_file_path, gray_screenshot)
-            text_data = pytesseract.image_to_data(gray_screenshot, output_type=pytesseract.Output.DICT)
-        else:
-            text_data = pytesseract.image_to_data(screenshot, output_type=pytesseract.Output.DICT)
 
-        if text_data != None:
-            for i, word in enumerate(text_data['text']):
-                if target_text.lower() in word.lower(): # Case-insensitive search
-                    if text_data['left'][i] > 2200 and text_data['top'][i] < 400:
-                        x = text_data['left'][i] + 10
-                        y = text_data['top'][i] + 10
+        pil_img = self._bgra_to_pil_rgb(bgra)
+
+        if x_0_crop is None:
+            return pil_img
+
+        x0, y0, x1, y1 = int(x_0_crop), int(y_0_crop), int(x_1_crop), int(y_1_crop)
+        x0 = max(0, min(x0, self.width))
+        x1 = max(0, min(x1, self.width))
+        y0 = max(0, min(y0, self.height))
+        y1 = max(0, min(y1, self.height))
+        if x1 <= x0 or y1 <= y0:
+            return None
+
+        return pil_img.crop((x0, y0, x1, y1))
+
+    def get_text_from_screenshot(
+        self,
+        crop_screenshot_positions: Tuple[int, int, int, int],
+        is_gray_reading: bool = True,
+        lowercase: bool = True,
+        tesseract_config: str = "--psm 6",
+    ) -> str:
+        pil_img = self.get_screenshot(*crop_screenshot_positions)
+        if pil_img is None:
+            return ""
+
+        if is_gray_reading:
+            cv_img = self._pil_to_cv_bgr(pil_img)
+            gray = cv.cvtColor(cv_img, cv.COLOR_BGR2GRAY)
+            _, bw = cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)
+            
+            if self.debugging:
+                self._safe_imwrite(self.BASE_DIR, bw)
+
+            text = pytesseract.image_to_string(bw, config=tesseract_config)
+        else:
+            text = pytesseract.image_to_string(pil_img, config={tesseract_config})
+
+        text = text.rstrip("\n")
+        return text.lower() if lowercase else text
+
+    def get_text_screen_position(
+        self,
+        target_text: str,
+        is_gray_reading: bool = True,
+        search_region: Optional[Tuple[int, int, int, int]] = None,
+        position_offset: Tuple[int, int] = (10, 10),
+        tesseract_config: str = "--psm 6",
+        gate_left_gt: Optional[int] = 2200,
+        gate_top_lt: Optional[int] = 400,
+    ) -> List[int]:
+        x, y = 0, 0
+        if search_region:
+            pil_img = self.get_screenshot(*search_region)
+        else:
+            pil_img = self.get_screenshot()
+
+        if pil_img is None:
+            return [x, y]
+
+        cv_img = self._pil_to_cv_bgr(pil_img)
+        data_src = cv_img
+
+        if is_gray_reading:
+            gray = cv.cvtColor(cv_img, cv.COLOR_BGR2GRAY)
+            _, data_src = cv.threshold(gray, 0, 255, cv.THRESH_BINARY | cv.THRESH_OTSU)
+
+        if self.debugging:
+            self._safe_imwrite(self.BASE_DIR, cv_img)
+
+        text_data = pytesseract.image_to_data(
+            data_src, output_type=pytesseract.Output.DICT, config=tesseract_config
+        )
+
+        print(text_data)
+
+        if not text_data or "text" not in text_data:
+            return [x, y]
+
+        x_offset = search_region[0] if search_region else 0
+        y_offset = search_region[1] if search_region else 0
+
+        t_lower = target_text.lower()
+        for i, word in enumerate(text_data.get("text", [])):
+            if not word:
+                continue
+            if t_lower in word.lower():
+                left = int(text_data["left"][i]) + x_offset
+                top = int(text_data["top"][i]) + y_offset
+
+                if (gate_left_gt is None or left > gate_left_gt) and (gate_top_lt is None or top < gate_top_lt):
+                    x = left + position_offset[0]
+                    y = top + position_offset[1]
+                    break
 
         return [x, y]
-        
-    def get_window_resolution(self):
+
+    def get_window_resolution(self) -> str:
         return f"{self.width}x{self.height}"
-    
-    def get_window(self):
+
+    def get_window(self) -> int:
         return self.hwnd
-    
-    def set_foreground_window(self):
-        win32gui.ShowWindow(self.hwnd, win32con.SW_RESTORE)
-        win32gui.SetForegroundWindow(self.hwnd)
+
+    def set_foreground_window(self) -> None:
+        try:
+            win32gui.ShowWindow(self.hwnd, win32con.SW_RESTORE)
+            win32gui.SetForegroundWindow(self.hwnd)
+        except win32gui.error:
+            try:
+                fg_hwnd = win32gui.GetForegroundWindow()
+                cur_tid = win32api.GetCurrentThreadId()
+                fg_tid = win32process.GetWindowThreadProcessId(fg_hwnd)[0]
+                user32 = ctypes.windll.user32
+                user32.AttachThreadInput(cur_tid, fg_tid, True)
+                win32gui.SetForegroundWindow(self.hwnd)
+                user32.AttachThreadInput(cur_tid, fg_tid, False)
+            except Exception:
+                pass
+
+    @staticmethod
+    def _safe_imwrite(path: str, img) -> bool:
+        # Normalize and ensure folder exists
+        p = Path(path)
+        if p.suffix.lower() not in {".png", ".jpg", ".jpeg", ".bmp", ".tiff", ".tif", ".webp"}:
+            # default to .png if missing/bad extension
+            p = p.with_suffix(".png")
+        if p.parent and not p.parent.exists():
+            p.parent.mkdir(parents=True, exist_ok=True)
+
+        import numpy as np
+        if not isinstance(img, np.ndarray):
+            try:
+                from PIL import Image
+                if isinstance(img, Image.Image):
+                    img = np.array(img)
+                else:
+                    raise TypeError("Unsupported image type for imwrite")
+            except Exception as e:
+                raise TypeError(f"Unsupported image type for imwrite: {type(img)}") from e
+
+        if img.dtype != np.uint8:
+            img = img.astype(np.uint8, copy=False)
+        if not img.flags["C_CONTIGUOUS"]:
+            img = np.ascontiguousarray(img)
+
+        ok = cv.imwrite(str(p), img)
+        if not ok:
+            raise IOError(
+                f"cv.imwrite failed for '{p}'. "
+                "Check write permissions and that the image has a valid shape "
+                "(HxW, HxWx3/BGR, or HxWx4/BGRA) and dtype=uint8."
+            )
+        return True
