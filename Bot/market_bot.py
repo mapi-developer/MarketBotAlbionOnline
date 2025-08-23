@@ -69,6 +69,8 @@ class bot():
         silver_balance_text = self.window_capture.get_text_from_screenshot(self.screenshot_positions["check_account_silver"], True)
         silver_balance_number = ConvertSilverToNumber(silver_balance_text)
 
+        print(silver_balance_text, silver_balance_text_inentory)
+
         if silver_balance_number_inventory == False and silver_balance_number != False:
             return silver_balance_number
         elif silver_balance_number_inventory != False and silver_balance_number == False:
@@ -76,7 +78,7 @@ class bot():
         elif silver_balance_number_inventory != False and silver_balance_number != False:
             return silver_balance_number_inventory
         else:
-            return 'cant check silver'
+            return False
 
     def change_account(self, account_name, characer_number=1):
         def logout():
@@ -230,6 +232,103 @@ class bot():
                 google_sheet_data_frame.to_csv(self.prices_caerleon_local_sheet_file_path, index=False)
                 print("Updated prices in local data from DataBase")
 
+    # orders
+    def cancel_orders(self, market_type="royal_market"):
+        orders_tab, check_order, cancel_order = [], [], []
+        if market_type == "royal_market":
+            orders_tab = self.mouse_targets["my_orders_tab"]
+            check_order = self.screenshot_positions["check_order_exist"]
+            cancel_order = self.mouse_targets["cancel_order"]
+        elif market_type == "black_market":
+            orders_tab = self.mouse_targets["my_orders_tab_black_market"]
+            check_order = self.screenshot_positions["check_order_exist"]
+            cancel_order = self.mouse_targets["cancel_order_black_market"]
+
+        pyautogui.click(orders_tab)
+        time.sleep(.2)
+        start_time = time.time()
+        while self.window_capture.get_text_from_screenshot(check_order) != "":
+            if time.time() - start_time >= 5:
+                start_time = time.time()
+                pyautogui.scroll(10)
+            pyautogui.click(cancel_order)
+            time.sleep(.1)
+
+        print("Successfully removed all orders")
+ 
+    def make_buy_orders(self, city_name, items_categories_to_check=["all"]):
+        silver_balance = self.get_account_silver_balance()
+        pyautogui.click(self.mouse_targets["market_create_buy_order_tab"])
+        time.sleep(.1)
+
+        worksheet = self.google_sheet.get_worksheet(configuration.database_sheets[f"items_to_buy_{city_name}"])
+        items_to_buy_data = worksheet.get_all_values()
+        items_to_buy_data_frame = pandas.DataFrame(items_to_buy_data[1:], columns=items_to_buy_data[0])
+
+        prices_worksheet = self.google_sheet.get_worksheet(configuration.database_sheets['caerleon'])
+        google_sheet_data = prices_worksheet.get_all_values()
+        prices_caerleon_data_frame = pandas.DataFrame(google_sheet_data[1:], columns=google_sheet_data[0])
+        
+        i = 0
+        for column_index in range(0, len(items_to_buy_data_frame.columns), 1):
+            if items_categories_to_check == ["all"] or items_to_buy_data_frame.columns[column_index].lower() in items_categories_to_check:
+                for row_index in range(0, len(items_to_buy_data_frame.iloc[:, column_index])):
+                    if items_to_buy_data_frame.iloc[row_index, column_index] != "" and type(items_to_buy_data_frame.iloc[row_index, column_index]) != type(1.11):
+                        if silver_balance == False or silver_balance > configuration.minimum_account_silver_balance:
+                            i += 1
+                            if i%10 == 0:
+                                silver_balance = self.get_account_silver_balance()
+                            item_category = items_to_buy_data_frame.columns[column_index]
+                            item_full_title = items_to_buy_data_frame.iloc[row_index, column_index]
+                            item_price_column_index = int(prices_caerleon_data_frame.columns.get_loc(item_category))
+                            item_price_row_index = int(prices_caerleon_data_frame.index[prices_caerleon_data_frame[item_category] == item_full_title].tolist()[0])
+                            item_price_caerleon = int(prices_caerleon_data_frame.iat[item_price_row_index, item_price_column_index+1])
+                            item_name, item_tier, item_enchantment = item_full_title.split("_")
+                            pyautogui.click(self.mouse_targets["market_search_reset"])
+                            time.sleep(.1)
+                            pyautogui.click(self.mouse_targets["market_search"])
+                            pyautogui.typewrite(item_name)
+                            time.sleep(.1)
+                            pyautogui.click(self.mouse_targets["market_tier"])
+                            time.sleep(.1)
+                            pyautogui.click(self.mouse_targets[f"market_tier_{item_tier}"])
+                            pyautogui.click(self.mouse_targets["market_enchantment"])
+                            time.sleep(.1)
+                            pyautogui.click(self.mouse_targets[f"market_enchantment_{item_enchantment}"])
+                            time.sleep(.1)
+                            pyautogui.click(self.mouse_targets["buy_order_button"])
+                            time.sleep(.1)
+                            if i == 1:
+                                self.check_statistics_open()
+
+                            text = self.window_capture.get_text_from_screenshot(self.screenshot_positions["buy_order_price"])
+                            if text != "":
+                                try:
+                                    item_order_price = int("".join(filter(str.isdigit, text)))
+                                except ValueError:
+                                    print("Value Error with item price check")
+                            item_amount = configuration.get_items_amount(item_order_price)
+                            silver_to_buy = item_amount * item_order_price * 1.05
+                            #print(item_price_caerleon, item_order_price, (item_price_caerleon/item_order_price)-1)
+                            print(silver_balance)
+                            if item_order_price < 200000 and item_order_price * configuration.minimum_order_profit_rate < item_price_caerleon and (silver_balance > silver_to_buy or silver_balance == False):
+                                time.sleep(.1)
+                                pyautogui.click(self.mouse_targets["change_item_amount_in_order"])
+                                pyautogui.typewrite(str(item_amount))
+                                time.sleep(.1)
+                                pyautogui.click(self.mouse_targets["one_silver_more"])
+                                pyautogui.click(self.mouse_targets["create_order_button"])
+                                time.sleep(.1)
+                                pyautogui.click(self.mouse_targets["crate_order_confirmation"])
+                                time.sleep(.1)
+                                print(f"Made order on {item_name} {item_tier}.{item_enchantment}")
+                            else:
+                                pyautogui.click(self.mouse_targets["close_order_tab"])
+                                time.sleep(.1)
+                        else:
+                            print("Not enough silver to continue")
+                            return False
+
     # fast buy
     def buy_item_from_market(self, item_caerleon_price, item_full_title, item_bought=0):
         if item_bought >= 5:
@@ -367,11 +466,12 @@ class bot():
         keyboard_listener.join()
         mouse_listener.join()
 
-    def test(self, DEBUG=False):
+    def test(self, DEBUG=True):
         if DEBUG:
             self.window_capture.set_foreground_window()
             #self.check_mouse_click_position()
-            
+            self.make_buy_orders(city_name='fort_sterling', items_categories_to_check=['bag', 'robe', 'helmet', 'armor', 'jacket', 'cowl', 'shapeshifter'])
+            #self.cancel_orders()
             print("DEBUG")
         else:
             try:
@@ -380,7 +480,7 @@ class bot():
                 #print(self.get_account_silver_balance())
                 #self.change_account('main_account', 2)
                 #self.check_prices_date('caerleon')
-                self.update_items_price(city_name='caerleon', only_zero_price=False, items_categories_to_check=['bag'])
+                self.update_items_price(city_name='caerleon', only_zero_price=False, items_categories_to_check=['armor', 'jacket', 'robe'])
             except KeyboardInterrupt:
                 print('Forced to stop bot!')
  
